@@ -7,8 +7,12 @@ import (
 	"bytes"
 	"flag"
 	"fmt"
+	"io"
 	"log"
+	"net/http"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"golang.org/x/exp/constraints"
 )
@@ -90,7 +94,24 @@ func Input() []byte {
 	if *flagSample {
 		suf = ".sample"
 	}
-	return MustGet(os.ReadFile(fmt.Sprintf("%d.input%s", curDay, suf)))
+	filename := fmt.Sprintf("%d.input%s", curDay, suf)
+	f, err := os.ReadFile(filename)
+	if err == nil {
+		return f
+	}
+	if *flagSample {
+		log.Fatalf("no sample input for day %d: %v", curDay, err)
+	}
+	session := MustGet(os.ReadFile(filepath.Join(os.Getenv("HOME"), "keys", "aoc.session")))
+	req := MustGet(http.NewRequest("GET", fmt.Sprintf("https://adventofcode.com/2023/day/%d/input", curDay), nil))
+	req.AddCookie(&http.Cookie{Name: "session", Value: strings.TrimSpace(string(session))})
+	res := MustGet(http.DefaultClient.Do(req))
+	if res.StatusCode != 200 {
+		log.Fatalf("bad status: %v", res.Status)
+	}
+	f = MustGet(io.ReadAll(res.Body))
+	MustDo(os.WriteFile(filename, f, 0644))
+	return f
 }
 
 func Scanner() *bufio.Scanner {
