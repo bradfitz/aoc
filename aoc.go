@@ -68,6 +68,8 @@ func Main() {
 			fmt.Fprintf(os.Stderr, "❌ for %v sample, got=%v; want %v\n", funcName, got, want)
 			os.Exit(1)
 		}
+	} else {
+		fmt.Fprintf(os.Stderr, "⚠️ no sample for %v\n", funcName)
 	}
 	altInput = nil
 	v := f()
@@ -81,7 +83,7 @@ func ExtractSamples(src []byte) {
 		log.Fatalf("parsing source to extract samples: %v", err)
 	}
 	var lastInput string
-	wantRx := regexp.MustCompile(`(?sm)/\*\s*want=([^\n]*)(?:\s+(.+\n))?\s*\*/`)
+	wantRx := regexp.MustCompile(`(?sm)^\s*want=([^\n]*)(?:\s+(.+\n))?\s*`)
 	for _, d := range f.Decls {
 		fd, ok := d.(*ast.FuncDecl)
 		if !ok || fd.Doc == nil {
@@ -89,7 +91,11 @@ func ExtractSamples(src []byte) {
 		}
 		funcName := fd.Name.Name
 		for _, c := range fd.Doc.List {
-			if m := wantRx.FindStringSubmatch(c.Text); m != nil {
+			text := strings.TrimPrefix(c.Text, "//")
+			if v, ok := strings.CutPrefix(text, "/*"); ok {
+				text = strings.TrimSuffix(v, "*/")
+			}
+			if m := wantRx.FindStringSubmatch(text); m != nil {
 				sampleWant[funcName] = m[1]
 				in := Or(m[2], lastInput)
 				sampleInput[funcName] = in
