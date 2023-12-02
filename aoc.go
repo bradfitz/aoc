@@ -7,45 +7,109 @@ import (
 	"bytes"
 	"flag"
 	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"io"
 	"log"
 	"net/http"
 	"os"
 	"path/filepath"
+	"reflect"
+	"regexp"
+	"runtime"
+	"strconv"
 	"strings"
 
 	"golang.org/x/exp/constraints"
 )
 
-var flagDay *int
-var flagSample *bool
+var flagDay *string
 
-var days = map[int]func(){}
-var curDay int
+var (
+	puzzles      []string
+	puzzleByName = map[string]func() any{} // func name -> func
+	sampleInput  = map[string]string{}
+	sampleWant   = map[string]string{}
+)
+
+var (
+	curDay   int
+	altInput []byte // non-nil to run a sample
+)
 
 func Main() {
-	flagDay = flag.Int("day", 0, "day to run")
-	flagSample = flag.Bool("sample", false, "use sample input")
+	flagDay = flag.String("day", "", "func name to run; empty string means latest registered")
 	flag.Parse()
 
-	if *flagDay == 0 {
-		for k := range days {
-			if k > *flagDay {
-				*flagDay = k
+	funcName := *flagDay
+	if funcName == "" {
+		funcName = puzzles[len(puzzles)-1]
+	}
+
+	f, ok := puzzleByName[funcName]
+	if !ok {
+		log.Fatalf("puzzle func %v not registered", funcName)
+	}
+	getDay := regexp.MustCompile(`\d+`)
+	if m := getDay.FindStringSubmatch(funcName); m == nil {
+		log.Fatalf("no digits in func name %q from which to extract day number", *flagDay)
+	} else {
+		curDay = Int(m[0])
+	}
+	if want, ok := sampleWant[funcName]; ok {
+		altInput = []byte(sampleInput[funcName])
+		got := fmt.Sprint(f())
+		if got != want {
+			fmt.Fprintf(os.Stderr, "❌ for %v sample, got=%v; want %v\n", funcName, got, want)
+			os.Exit(1)
+		}
+	}
+	altInput = nil
+	v := f()
+	fmt.Println(v)
+}
+
+func ExtractSamples(src []byte) {
+	fs := token.NewFileSet()
+	f, err := parser.ParseFile(fs, "aoc.go", src, parser.ParseComments)
+	if err != nil {
+		log.Fatalf("parsing source to extract samples: %v", err)
+	}
+	var lastInput string
+	wantRx := regexp.MustCompile(`(?sm)/\*\s*want=([^\n]*)(?:\s+(.+\n))?\s*\*/`)
+	for _, d := range f.Decls {
+		fd, ok := d.(*ast.FuncDecl)
+		if !ok || fd.Doc == nil {
+			continue
+		}
+		funcName := fd.Name.Name
+		for _, c := range fd.Doc.List {
+			if m := wantRx.FindStringSubmatch(c.Text); m != nil {
+				sampleWant[funcName] = m[1]
+				in := Or(m[2], lastInput)
+				sampleInput[funcName] = in
+				lastInput = in
 			}
 		}
 	}
-
-	f, ok := days[*flagDay]
-	if !ok {
-		log.Fatalf("day %v not registered", *flagDay)
-	}
-	curDay = *flagDay
-	f()
 }
 
-func AddDay(day int, f func()) {
-	days[day] = f
+func funcName(f func() any) string {
+	rv := reflect.ValueOf(f)
+	rf := runtime.FuncForPC(rv.Pointer())
+	if rf == nil {
+		panic("no func found")
+	}
+	return strings.TrimPrefix(rf.Name(), "main.")
+}
+
+func Add(puzFuncs ...func() any) {
+	for _, f := range puzFuncs {
+		name := funcName(f)
+		puzzles = append(puzzles, name)
+		puzzleByName[name] = f
+	}
 }
 
 type Pt2[T constraints.Signed] struct {
@@ -90,17 +154,13 @@ func (p Pt2[T]) Toward(b Pt2[T]) Pt2[T] {
 }
 
 func Input() []byte {
-	var suf string
-	if *flagSample {
-		suf = ".sample"
+	if altInput != nil {
+		return altInput
 	}
-	filename := fmt.Sprintf("%d.input%s", curDay, suf)
+	filename := fmt.Sprintf("%d.input", curDay)
 	f, err := os.ReadFile(filename)
 	if err == nil {
 		return f
-	}
-	if *flagSample {
-		log.Fatalf("no sample input for day %d: %v", curDay, err)
 	}
 	session := MustGet(os.ReadFile(filepath.Join(os.Getenv("HOME"), "keys", "aoc.session")))
 	req := MustGet(http.NewRequest("GET", fmt.Sprintf("https://adventofcode.com/2023/day/%d/input", curDay), nil))
@@ -116,6 +176,10 @@ func Input() []byte {
 
 func Scanner() *bufio.Scanner {
 	return bufio.NewScanner(bytes.NewReader(Input()))
+}
+
+func Int(s string) int {
+	return MustGet(strconv.Atoi(s))
 }
 
 // MustDo panics if err is non-nil.
@@ -141,4 +205,27 @@ func ForLines(onLine func(string)) {
 	if err := s.Err(); err != nil {
 		log.Fatal(err)
 	}
+}
+
+func DigVal(b byte) int {
+	if b >= '0' && b <= '9' {
+		return int(b - '0')
+	}
+	panic(fmt.Sprintf("bogus digit %q", string(b)))
+}
+
+// Or returns the first non-zero element of list, or else returns the zero T.
+//
+// This is the proposal from
+// https://github.com/golang/go/issues/60204#issuecomment-1581245334.
+func Or[T comparable](list ...T) T {
+	// TODO(bradfitz): remove the comparable constraint so we can use this
+	// with funcs too and use reflect to see whether they're non-zero? 🤷‍♂️
+	var zero T
+	for _, v := range list {
+		if v != zero {
+			return v
+		}
+	}
+	return zero
 }
