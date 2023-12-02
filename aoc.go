@@ -20,6 +20,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"golang.org/x/exp/constraints"
 )
@@ -39,12 +40,15 @@ var (
 )
 
 func Main() {
-	flagDay = flag.String("day", "", "func name to run; empty string means latest registered")
+	flagDay = flag.String("day", "", "func name to run; empty string means latest registered. If it starts with a digit, then \"day\" prefix is assumed.")
 	flag.Parse()
 
 	funcName := *flagDay
 	if funcName == "" {
 		funcName = puzzles[len(puzzles)-1]
+	}
+	if unicode.IsDigit(rune(funcName[0])) {
+		funcName = "day" + funcName
 	}
 
 	f, ok := puzzleByName[funcName]
