@@ -130,7 +130,21 @@ type Pt3[T constraints.Signed] struct {
 	X, Y, Z T
 }
 
-type PtInt = Pt2[int]
+type Pt = Pt2[int]
+
+func (p Pt2[T]) ForNeighbors(f func(Pt2[T]) (keepGoing bool)) {
+	for y := T(-1); y <= 1; y++ {
+		for x := T(-1); x <= 1; x++ {
+			if x == 0 && y == 0 {
+				continue
+			}
+			if !f(Pt2[T]{p.X + x, p.Y + y}) {
+				return
+			}
+		}
+	}
+}
+
 type Pt3Int = Pt3[int]
 
 func AbsInt[T constraints.Signed](x, y T) T {
@@ -207,10 +221,20 @@ func MustGet[T any](v T, err error) T {
 	return v
 }
 
-func ForLines(onLine func(string)) {
+// ForLines calls onLine for each line of input.
+// The y value is the row number, starting with 0.
+func ForLines(onLine func(line string)) {
+	ForLinesY(func(_ int, line string) { onLine(line) })
+}
+
+// ForLines calls onLine for each line of input.
+// The y value is the row number, starting with 0.
+func ForLinesY(onLine func(y int, line string)) {
 	s := Scanner()
+	y := -1
 	for s.Scan() {
-		onLine(s.Text())
+		y++
+		onLine(y, s.Text())
 	}
 	if err := s.Err(); err != nil {
 		log.Fatal(err)
@@ -238,4 +262,29 @@ func Or[T comparable](list ...T) T {
 		}
 	}
 	return zero
+}
+
+type Grid map[Pt]rune
+
+func ReadGrid() Grid {
+	g := Grid{}
+	ForLinesY(func(y int, v string) {
+		for x, r := range v {
+			if unicode.IsSpace(r) {
+				continue
+			}
+			g[Pt{x, y}] = r
+		}
+	})
+	return g
+}
+
+func (g Grid) PosSetWithValue(v rune) map[Pt]bool {
+	s := map[Pt]bool{}
+	for p, r := range g {
+		if r == v {
+			s[p] = true
+		}
+	}
+	return s
 }
