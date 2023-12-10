@@ -68,6 +68,7 @@ func Main() {
 			fmt.Fprintf(os.Stderr, "❌ for %v sample, got=%v; want %v\n", funcName, got, want)
 			os.Exit(1)
 		}
+		fmt.Fprintf(os.Stderr, "OK sample result.\n")
 	} else {
 		fmt.Fprintf(os.Stderr, "⚠️ no sample for %v\n", funcName)
 	}
@@ -287,4 +288,40 @@ func (g Grid) PosSetWithValue(v rune) map[Pt]bool {
 		}
 	}
 	return s
+}
+
+func (g Grid) Bounds() (minX, minY, maxX, maxY int) {
+	n := 0
+	for p := range g {
+		if n == 0 {
+			minX = p.X
+			maxX = p.X
+			minY = p.Y
+			maxY = p.Y
+		}
+		n++
+		if p.X < minX {
+			minX = p.X
+		}
+		if p.X > maxX {
+			maxX = p.X
+		}
+		if p.Y < minY {
+			minY = p.Y
+		}
+		if p.Y > maxY {
+			maxY = p.Y
+		}
+	}
+	return
+}
+
+func (g Grid) Draw() {
+	minX, minY, maxX, maxY := g.Bounds()
+	for y := minY; y <= maxY; y++ {
+		for x := minX; x <= maxX; x++ {
+			fmt.Printf("%c", g[Pt{x, y}])
+		}
+		fmt.Println()
+	}
 }
