@@ -178,6 +178,27 @@ func (p Pt2[T]) Toward(b Pt2[T]) Pt2[T] {
 	return p1
 }
 
+func (p Pt2[T]) North() Pt2[T] { return Pt2[T]{p.X, p.Y - 1} }
+func (p Pt2[T]) South() Pt2[T] { return Pt2[T]{p.X, p.Y + 1} }
+func (p Pt2[T]) West() Pt2[T]  { return Pt2[T]{p.X - 1, p.Y} }
+func (p Pt2[T]) East() Pt2[T]  { return Pt2[T]{p.X + 1, p.Y} }
+
+func sliceOf[T any](v ...T) []T { return v }
+
+var NorthCounterClockwise = sliceOf(
+	Pt2[int].North,
+	Pt2[int].West,
+	Pt2[int].South,
+	Pt2[int].East,
+)
+
+var NorthClockwise = sliceOf(
+	Pt2[int].North,
+	Pt2[int].East,
+	Pt2[int].South,
+	Pt2[int].West,
+)
+
 func Input() []byte {
 	if altInput != nil {
 		return altInput
@@ -280,6 +301,19 @@ func ReadGrid() Grid {
 	return g
 }
 
+func GridFromString(s string) Grid {
+	g := Grid{}
+	for y, line := range strings.Split(s, "\n") {
+		for x, r := range line {
+			if unicode.IsSpace(r) {
+				continue
+			}
+			g[Pt{x, y}] = r
+		}
+	}
+	return g
+}
+
 func (g Grid) PosSetWithValue(v rune) map[Pt]bool {
 	s := map[Pt]bool{}
 	for p, r := range g {
@@ -320,7 +354,11 @@ func (g Grid) Draw() {
 	minX, minY, maxX, maxY := g.Bounds()
 	for y := minY; y <= maxY; y++ {
 		for x := minX; x <= maxX; x++ {
-			fmt.Printf("%c", g[Pt{x, y}])
+			r := g[Pt{x, y}]
+			if r == 0 {
+				r = '?'
+			}
+			fmt.Printf("%c", r)
 		}
 		fmt.Println()
 	}
