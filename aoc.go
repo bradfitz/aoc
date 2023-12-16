@@ -178,6 +178,23 @@ func (p Pt2[T]) Toward(b Pt2[T]) Pt2[T] {
 	return p1
 }
 
+func (p Pt2[T]) TowardDir(d Dir) (b Pt2[T]) {
+	b = p
+	switch d {
+	default:
+		panic("bad dir")
+	case North:
+		b.Y--
+	case South:
+		b.Y++
+	case West:
+		b.X--
+	case East:
+		b.X++
+	}
+	return
+}
+
 func (p Pt2[T]) North() Pt2[T] { return Pt2[T]{p.X, p.Y - 1} }
 func (p Pt2[T]) South() Pt2[T] { return Pt2[T]{p.X, p.Y + 1} }
 func (p Pt2[T]) West() Pt2[T]  { return Pt2[T]{p.X - 1, p.Y} }
@@ -363,3 +380,20 @@ func (g Grid) Draw() {
 		fmt.Println()
 	}
 }
+
+type Dir uint8
+
+const (
+	North Dir = iota
+	East
+	South
+	West
+
+	Up    = North
+	Right = East
+	Down  = South
+	Left  = West
+)
+
+func (d Dir) IsUpDown() bool    { return d == North || d == South }
+func (d Dir) IsLeftRight() bool { return d == West || d == East }
