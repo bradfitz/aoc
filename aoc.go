@@ -127,11 +127,12 @@ type Pt2[T constraints.Signed] struct {
 	X, Y T
 }
 
-type Pt3[T constraints.Signed] struct {
+type Pt3[T constraints.Signed | float64] struct {
 	X, Y, Z T
 }
 
 type Pt = Pt2[int]
+type Vox = Pt3[int]
 
 func (p Pt2[T]) ForNeighbors(f func(Pt2[T]) (keepGoing bool)) {
 	for y := T(-1); y <= 1; y++ {
@@ -148,7 +149,7 @@ func (p Pt2[T]) ForNeighbors(f func(Pt2[T]) (keepGoing bool)) {
 
 type Pt3Int = Pt3[int]
 
-func AbsInt[T constraints.Signed](x, y T) T {
+func AbsDiff[T constraints.Signed](x, y T) T {
 	v := x - y
 	if v < 0 {
 		v = -v
@@ -156,9 +157,16 @@ func AbsInt[T constraints.Signed](x, y T) T {
 	return v
 }
 
+func AbsInt[T constraints.Signed](v T) T {
+	if v < 0 {
+		return -v
+	}
+	return v
+}
+
 // MDist returns the manhattan distance between a and b.
 func (a Pt2[T]) MDist(b Pt2[T]) T {
-	return AbsInt[T](a.X, b.X) + AbsInt[T](a.Y, b.Y)
+	return AbsDiff[T](a.X, b.X) + AbsDiff[T](a.Y, b.Y)
 }
 
 // Toward returns a point moving from p to b in max 1 step in the X
@@ -174,6 +182,28 @@ func (p Pt2[T]) Toward(b Pt2[T]) Pt2[T] {
 		p1.Y--
 	} else if b.Y > p.Y {
 		p1.Y++
+	}
+	return p1
+}
+
+// Toward returns a point moving from p to b in max 1 step in the X
+// and/or Y direction.
+func (p Pt3[T]) Toward(b Pt3[T]) Pt3[T] {
+	p1 := p
+	if b.X < p.X {
+		p1.X--
+	} else if b.X > p.X {
+		p1.X++
+	}
+	if b.Y < p.Y {
+		p1.Y--
+	} else if b.Y > p.Y {
+		p1.Y++
+	}
+	if b.Z < p.Z {
+		p1.Z--
+	} else if b.Z > p.Z {
+		p1.Z++
 	}
 	return p1
 }
@@ -200,6 +230,22 @@ func (p Pt2[T]) South() Pt2[T] { return Pt2[T]{p.X, p.Y + 1} }
 func (p Pt2[T]) West() Pt2[T]  { return Pt2[T]{p.X - 1, p.Y} }
 func (p Pt2[T]) East() Pt2[T]  { return Pt2[T]{p.X + 1, p.Y} }
 
+func (a Pt3[T]) Add(b Pt3[T]) Pt3[T] {
+	return Pt3[T]{a.X + b.X, a.Y + b.Y, a.Z + b.Z}
+}
+
+func (a Pt3[T]) Sub(b Pt3[T]) Pt3[T] {
+	return Pt3[T]{a.X - b.X, a.Y - b.Y, a.Z - b.Z}
+}
+
+func (a Pt3[T]) Mul(n T) Pt3[T] {
+	return Pt3[T]{a.X * n, a.Y * n, a.Z * n}
+}
+
+func (a Pt3[T]) Div(n T) Pt3[T] {
+	return Pt3[T]{a.X / n, a.Y / n, a.Z / n}
+}
+
 func sliceOf[T any](v ...T) []T { return v }
 
 var NorthCounterClockwise = sliceOf(
@@ -215,6 +261,13 @@ var NorthClockwise = sliceOf(
 	Pt2[int].South,
 	Pt2[int].West,
 )
+
+var Dirs = []Dir{
+	North,
+	East,
+	South,
+	West,
+}
 
 func Input() []byte {
 	if altInput != nil {
@@ -397,3 +450,18 @@ const (
 
 func (d Dir) IsUpDown() bool    { return d == North || d == South }
 func (d Dir) IsLeftRight() bool { return d == West || d == East }
+
+func (d Dir) Rune() rune {
+	switch d {
+	case North:
+		return '^'
+	case South:
+		return 'V'
+	case East:
+		return '>'
+	case West:
+		return '<'
+	default:
+		panic("bad dir")
+	}
+}
